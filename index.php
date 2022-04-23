@@ -84,6 +84,13 @@ if(!strcmp($method, "getAllUsers")) {
 
 
 
+if(!strcmp($method, "getNoteListData")) {
+	//$newStore = new \SleekDB\Store("user", $databaseDirectory, ["timeout" => false]);
+
+	echo json_encode(array("eine", "liste", "von", "der", "api", "mehr"));
+}
+
+
 
 
 function validate_credentials($username, $password) {
