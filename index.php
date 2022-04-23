@@ -4,6 +4,14 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: *");
 header('Content-Type: text/html; charset=utf-8');
 
+//prevent script on being executed on OPTIONS requests
+if(!strcmp($_SERVER['REQUEST_METHOD'], "OPTIONS")) {
+	echo "yes, backend is right there 4 u :)";
+	exit(0);
+}
+
+
+
 require_once __DIR__ . "/lib/SleekDB-master/src/Store.php";
 
 $databaseDirectory = dirname(__FILE__) . "/db";
@@ -12,7 +20,8 @@ $method = (isset($_GET['method'])) ? $_GET['method'] : 'register';
 $username = (isset($_GET['username'])) ? $_GET['username'] : '';
 $password = (isset($_GET['password'])) ? $_GET['password'] : '';
 $email = (isset($_GET['email'])) ? $_GET['email'] : '';
-
+$payload_data = (isset($_GET['data'])) ? $_GET['data'] : "";
+$uid = null;
 
 
 
@@ -46,7 +55,7 @@ if(!strcmp($method, "login")) {
 if(!strcmp($method, "register")) {
 	$newStore = new \SleekDB\Store("user", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
 
-	if($newStore->count(["username", "=", $username]) >  0) {
+	if($newStore->findOneBy(["username", "=", $username])) {
 		echo "username already set";
 		exit(0);
 	}
@@ -87,7 +96,50 @@ if(!strcmp($method, "getAllUsers")) {
 if(!strcmp($method, "getNoteListData")) {
 	//$newStore = new \SleekDB\Store("user", $databaseDirectory, ["timeout" => false]);
 
-	echo json_encode(array("eine", "liste", "von", "der", "api", "mehr"));
+	$apache_headers = getallheaders();
+	$auth_header = $apache_headers['Authorization'];
+	if(!is_jwt_valid($auth_header)) {
+		echo "please login, use token: " . $auth_header;
+		exit(0);
+	}
+
+	$newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false]);
+
+	$notes = $newStore->findBy(["uid", "=", $uid]);
+	$note_list_data = array();
+	foreach ($notes as $note) {
+		$note_list_entry = array("title" => $note['title'], "teaser" => (str_split($note['content'], 40)[0]), "last_change" => $note['last_change']);
+		array_push($note_list_data, $note_list_entry);
+	}
+
+
+	echo json_encode($note_list_data);
+}
+
+
+if(!strcmp($method, "newNote")) {
+
+	$apache_headers = getallheaders();
+	$auth_header = $apache_headers['Authorization'];
+	if(!is_jwt_valid($auth_header)) {
+		echo "please login, use token: " . $auth_header;
+		exit(0);
+	}
+
+	$newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
+
+	$note_data = json_decode($payload_data);
+
+	$note = [
+		"uid" => $uid,
+		"last_change" => time(),
+		"title" => $note_data->title,
+		"content" => $note_data->content
+	];
+
+	$result = json_encode($newStore->insert($note));
+
+	echo "result: $result";
 }
 
 
@@ -141,6 +193,9 @@ function is_jwt_valid($jwt, $secret = 'secret') {
 	$header = base64_decode($tokenParts[0]);
 	$payload = base64_decode($tokenParts[1]);
 	$signature_provided = $tokenParts[2];
+
+	global $uid;
+	$uid = json_decode($payload)->sub;
 
 	//@TODO fix, alway causes error
 	// check the expiration time - note this will cause an error if there is no 'exp' claim in the jwt
