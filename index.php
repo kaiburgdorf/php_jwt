@@ -42,7 +42,7 @@ if(!strcmp($method, "login")) {
 						'name'	=> $username,
 						'admin'	=> true,
 						'iat'	=> time(), 
-						'exp'	=> (time() + 300)
+						'exp'	=> (time() + 3000)
 					);
 
     $jwt = generate_jwt($headers, $payload);
@@ -92,6 +92,14 @@ if(!strcmp($method, "getAllUsers")) {
 }
 
 
+if(!strcmp($method, "getEntry")) {
+	$newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false]);
+
+	$id = json_decode($payload_data);
+	$note = $newStore->findOneBy( ["_id", "=", $id] );
+	echo json_encode($note);
+}
+
 
 if(!strcmp($method, "getNoteListData")) {
 	//$newStore = new \SleekDB\Store("user", $databaseDirectory, ["timeout" => false]);
@@ -108,7 +116,11 @@ if(!strcmp($method, "getNoteListData")) {
 	$notes = $newStore->findBy(["uid", "=", $uid]);
 	$note_list_data = array();
 	foreach ($notes as $note) {
-		$note_list_entry = array("title" => $note['title'], "teaser" => (str_split($note['content'], 40)[0]), "last_change" => $note['last_change']);
+		$note_list_entry = array(	"title" => $note['title'],
+									"teaser" => (str_split($note['content'],40)[0]),
+									"last_change" => $note['last_change'],
+									"id" => $note['_id']
+								);
 		array_push($note_list_data, $note_list_entry);
 	}
 
@@ -138,6 +150,32 @@ if(!strcmp($method, "newNote")) {
 	];
 
 	$result = json_encode($newStore->insert($note));
+
+	echo "result: $result";
+}
+
+if(!strcmp($method, "updateNote")) {
+
+	$apache_headers = getallheaders();
+	$auth_header = $apache_headers['Authorization'];
+	if(!is_jwt_valid($auth_header)) {
+		echo "please login, use token: " . $auth_header;
+		exit(0);
+	}
+
+	$newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
+
+	$note_data = json_decode($payload_data);
+
+	$note = [
+		"uid" => $uid,
+		"last_change" => time(),
+		"title" => $note_data->title,
+		"content" => $note_data->content,
+		"_id" => $note_data->id
+	];
+
+	$result = json_encode($newStore->updateOrInsert($note));
 
 	echo "result: $result";
 }
