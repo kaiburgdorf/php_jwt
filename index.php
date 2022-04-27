@@ -182,6 +182,24 @@ if (!strcmp($method, "updateNote")) {
 }
 
 
+if (!strcmp($method, "deleteNote")) {
+
+    $apache_headers = getallheaders();
+    $auth_header = $apache_headers['Authorization'];
+    if (!is_jwt_valid($auth_header)) {
+        echo "please login, use token: " . $auth_header;
+        exit(0);
+    }
+
+    $newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
+
+    $note_id = json_decode($payload_data);
+
+
+    $result = json_encode($newStore->deleteBy(['_id', '=', $note_id]));
+
+    echo "result: $result";
+}
 
 
 function validate_credentials($username, $password)
