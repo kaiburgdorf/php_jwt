@@ -11,7 +11,10 @@ class Api {
 
     private $_methodRestriction = array(
         "login" => ["restriction" => "none"],
-        "getEntry" => ["restriction" => "user"]
+        "getNoteListData" => ["restriction" => "user"],
+        "getEntry" => ["restriction" => "user"],
+        'updateNote' => ["restriction" => "user"],
+        'newNote' => ["restriction" => "user"]
     );
 
     // check for enum
@@ -35,7 +38,9 @@ class Api {
     
         $this->_auth = new Auth();
         $this->_db = new Db();
-        $this->_jwt = new Jwt();
+        //echo (var_dump(getallheaders()));
+        $x = getallheaders();
+        $this->_jwt = new Jwt($x['Authorization']);
     }
 
     public function call_method_from_params() {
@@ -43,21 +48,27 @@ class Api {
         
         //check if method is allowedcallFunction
         if (!$this->_methodRestriction[$method]) {
-            return $this->response(false, "Invalid request");
+            return $this->response(false, "Invalid request", "", 500);
         }
         
         $restriction = $this->_methodRestriction[$method]['restriction'];
         
         //check if method is restricted
         if ($restriction > 0) {
+
+            $jwt_valid = $this->_jwt->validate_token();
+            if (!$jwt_valid) {
+                return $this->response(false, "Invalid Token", "");
+            }
             //jwt get role
-            $role = 'admin';
+
+            // $role = 'admin';
             if ($this->_restrictionLevel[$restriction] > $this->_restrictionLevel[$role]) {
                 return $this->response(false, "Authorization failed");
             }
         }
-        return $this->login();
-        //return  call_user_func($this->_method);
+        
+        return  call_user_func(array($this, $this->_method));
     }
 
     private function response($success = false, $msg = "", $payload = "", $http_code = 200) {
@@ -74,14 +85,16 @@ class Api {
     }
 
     private function login() {
-        if (!$this->_auth->validate_credentials($this->_username, $this->_password)) {
-            echo "login failed";
+
+        $uid = $this->_auth->validate_credentials($this->_username, $this->_password);
+        if (!$uid) {
             exit(0);
         }
     
-        $db_user = $this->_db->getStore('user')->findOneBy(["username", "=", $username]);
+        // $db_user = $this->_db->getStore('user')->findOneBy(["username", "=", $this->_username]);
     
-        $this->_jwt->set_payload('1', $username, true, 300);
+        //echo (var_dump($db_user));
+        $this->_jwt->set_payload($uid, $this->_username, true, 300);
         $jwt = $this->_jwt->generate_jwt();
 
         header("AuthToken: $jwt");
@@ -89,7 +102,7 @@ class Api {
     
         return $this->response(true, "Successfully logged in", "");
     }
-}
+
 
     /*
     private function register() {
@@ -109,21 +122,14 @@ class Api {
     
         echo "result: $result";
     }
-
+*/
     private function getEntry() {
-        $apache_headers = getallheaders();
-        $jwt = $apache_headers['Authorization'];
-        if (!is_jwt_valid($jwt)) {
-            echo "please login, use token: " . $auth_header;
-            exit(0);
-        }
+        
     
-        $newStore = new \SleekDB\Store(
-            "notes", $databaseDirectory, ["timeout" => false]
-        );
-        $id = json_decode($payload_data);
-        $note = $newStore->findOneBy(["_id", "=", $id]);
+        $id = json_decode($this->_payload_data);
+        $note = $this->_db->getStore('notes')->findOneBy(["_id", "=", $id]);
     
+        /*
         $tokenParts = explode('.', $jwt);
         $token_header = json_decode(base64_decode($tokenParts[0]));
         $token_payload = json_decode(base64_decode($tokenParts[1]));    
@@ -132,51 +138,42 @@ class Api {
         $jwt = generate_jwt($token_header, $token_payload);
         header("AuthToken: $jwt");
         header('Access-Control-Expose-Headers: AuthToken');
+        */
+        //$this->_jwt->refresh(); @todo make it work
+        return $this->response(true, "", $note);
+    }
+
+
+    private function getNoteListData() {                
     
-        echo json_encode($note);
-    }
+        //echo json_encode($this->_jwt->get_payload());
+        $uid = $this->_jwt->get_payload()->sub;
+    
+        $notes = $this->_db->getStore('notes')->findBy(["uid", "=", $uid]);
+        $note_list_data = array();
 
-
-    private function getNoteListData() {
-        if (!strcmp($method, "getNoteListData")) {
-            //$newStore = new \SleekDB\Store("user", $databaseDirectory, ["timeout" => false]);
-        
-            $apache_headers = getallheaders();
-            $auth_header = $apache_headers['Authorization'];
-            if (!is_jwt_valid($auth_header)) {
-                echo "please login, use token: " . $auth_header;
-                exit(0);
-            }
-        
-            $newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false]);
-        
-            $notes = $newStore->findBy(["uid", "=", $uid]);
-            $note_list_data = array();
-            foreach ($notes as $note) {
-                $note_list_entry = array(    "title" => $note['title'],
-                                            "teaser" => (str_split($note['content'], 40)[0]),
-                                            "last_change" => $note['last_change'],
-                                            "id" => $note['_id']
-                                        );
-                array_push($note_list_data, $note_list_entry);
-            }
-        
-        
-            echo json_encode($note_list_data);
+        foreach ($notes as $note) {
+            $note_list_entry = array(    "title" => $note['title'],
+                                        "teaser" => (str_split($note['content'], 40)[0]),
+                                        "last_change" => $note['last_change'],
+                                        "id" => $note['_id']
+                                    );
+            array_push($note_list_data, $note_list_entry);
         }
+    
+        //$this->_jwt->refresh(); @TODO make it work
+    
+        return $this->response(true, "", $note_list_data);
+        
     }
 
+    
     private function newNote() {
-        $apache_headers = getallheaders();
-        $auth_header = $apache_headers['Authorization'];
-        if (!is_jwt_valid($auth_header)) {
-            echo "please login, use token: " . $auth_header;
-            exit(0);
-        }
-    
-        $newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
-    
-        $note_data = json_decode($payload_data);
+        
+        
+        $note_data = json_decode($this->_payload_data);
+        $uid = $this->_jwt->get_payload()->sub;
+
     
         $note = [
         "uid" => $uid,
@@ -185,23 +182,20 @@ class Api {
         "content" => $note_data->content
         ];
     
-        $result = json_encode($newStore->insert($note));
+        $result = json_encode($this->_db->getStore('notes')->insert($note));
     
-        echo "result: $result";
+        return $this->response(true);
     }
 
     private function updateNote() {
-        $apache_headers = getallheaders();
-        $auth_header = $apache_headers['Authorization'];
-        if (!is_jwt_valid($auth_header)) {
-            echo "please login, use token: " . $auth_header;
-            exit(0);
-        }
+        
     
-        $newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
+        //$newStore = new \SleekDB\Store("notes", $databaseDirectory, ["timeout" => false, 'primary_key' => "_id"]);
     
-        $note_data = json_decode($payload_data);
+        $note_data = json_decode($this->_payload_data);
     
+        $uid = $this->_jwt->get_payload()->sub;
+
         $note = [
         "uid" => $uid,
         "last_change" => time(),
@@ -210,11 +204,12 @@ class Api {
         "_id" => $note_data->id
         ];
     
-        $result = json_encode($newStore->updateOrInsert($note));
+        //$result = json_encode($this->_db->getStore('notes')->updateOrInsert($note));
+        $this->_db->getStore('notes')->updateOrInsert($note);
     
-        echo "result: $result";
+        return $this->response(true);
     }
-
+/*
     private function deleteNote() {
         $apache_headers = getallheaders();
         $auth_header = $apache_headers['Authorization'];
@@ -434,4 +429,6 @@ class Api {
 
 }
 */
+
+}
 ?>

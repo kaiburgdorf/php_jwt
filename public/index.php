@@ -23,11 +23,19 @@ class Main {
     private $api;
 
     public function __construct() {
-        $this->api = new Api();
+        //$this->api = new Api();
     }
 
     public function run() {
-        echo $this->api->call_method_from_params();
+        //prevent script on being executed on OPTIONS requests
+        if (!strcmp($_SERVER['REQUEST_METHOD'], "OPTIONS")) {
+            http_response_code(200);
+            echo "yes, backend is right there 4 u :)";
+            exit(0);
+        }
+        elseif(!strcmp($_SERVER['REQUEST_METHOD'], "GET")) {
+            echo (new Api)->call_method_from_params();
+        }
     }
 }
 
