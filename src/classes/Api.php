@@ -22,6 +22,7 @@ class Api {
     private $_auth;
     private $_db;
     private $_jwt;
+    private $_notes;
 
     function __construct() {
         //hier GETS und header auslesen
@@ -33,12 +34,13 @@ class Api {
     
         $this->_auth = new Auth();
         $this->_db = new Db();
-        $x = getallheaders(); //check isset, not always set
-        $this->_jwt = new Jwt($x['Authorization']);
+        $this->_jwt = new Jwt();
+        $this->_notes = new Notes();
     }
 
     public function call_method_from_params() {
         $method = $this->_method;
+        $jwt_refresh = false;
         
         //check if method is allowedcallFunction
         if (!$this->_methodRestriction[$method]) {
@@ -50,20 +52,30 @@ class Api {
         //check if method is restricted
         if ($restriction_lvl > 0) {
 
+            $x = getallheaders(); //check isset, not always set
+            $this->_jwt->set_token($x['Authorization']);
+
             $jwt_valid = $this->_jwt->validate_token();
             if (!$jwt_valid) {
                 return $this->response(false, "Invalid Token", "", 500);
             }
+
+            $jwt_refresh = true;
+
             //jwt get role
 
             // @TODO role neu denken
             $role = 'admin';
-            if ($this->_restrictionLevel[$restriction] > $this->_restrictionLevel[$role]) {
+            if ($restriction_lvl > $this->_restrictionLevel[$role]) {
                 return $this->response(false, "Authorization failed");
             }
         }
         
-        return  call_user_func(array($this, $this->_method));
+        $result = call_user_func(array($this, $this->_method));
+        if ($jwt_refresh) {
+            $this->_jwt->refresh();
+        }
+        return $result;
     }
 
     private function response($success = false, $msg = "", $payload = "", $http_code = 200) {
@@ -112,7 +124,7 @@ class Api {
 
     private function getEntry() {  
         $id = json_decode($this->_payload_data);
-        $note = $this->_db->getStore('notes')->findOneBy(["_id", "=", $id]);
+        $note = $this->_notes->read($id, 'single');
     
         return $this->response(true, "", $note);
     }
@@ -120,61 +132,31 @@ class Api {
 
     private function getNoteListData() {                
         $uid = $this->_jwt->get_payload()->sub;
-    
-        $notes = $this->_db->getStore('notes')->findBy(["uid", "=", $uid]);
-        $note_list_data = array();
-
-        foreach ($notes as $note) {
-            $note_list_entry = array(    "title" => $note['title'],
-                                        "teaser" => (str_split($note['content'], 40)[0]),
-                                        "last_change" => $note['last_change'],
-                                        "id" => $note['_id']
-                                    );
-            array_push($note_list_data, $note_list_entry);
-        }
+        $notes = $this->_notes->read($uid, 'all');
         
-        return $this->response(true, "", $note_list_data);
+        return $this->response(true, "", $notes);
     }
     
     private function newNote() {
         $note_data = json_decode($this->_payload_data);
         $uid = $this->_jwt->get_payload()->sub;
+        $result = $this->_notes->create($uid, $note_data);
 
-    
-        $note = [
-        "uid" => $uid,
-        "last_change" => time(),
-        "title" => $note_data->title,
-        "content" => $note_data->content
-        ];
-    
-        $result = json_encode($this->_db->getStore('notes')->insert($note));
-    
         return $this->response(true);
     }
 
     private function updateNote() {    
         $note_data = json_decode($this->_payload_data);
-    
         $uid = $this->_jwt->get_payload()->sub;
+        $result = $this->_notes->update($uid, $note_data);
 
-        $note = [
-        "uid" => $uid,
-        "last_change" => time(),
-        "title" => $note_data->title,
-        "content" => $note_data->content,
-        "_id" => $note_data->id
-        ];
-    
-        $this->_db->getStore('notes')->updateOrInsert($note);
-    
         return $this->response(true);
     }
 
     private function deleteNote() {
         $note_id = json_decode($this->_payload_data);
-        $result = json_encode($this->_db->getStore('notes')->deleteBy(['_id', '=', $note_id]));
-    
+        $this->_notes->delete($note_id);
+
         return $this->response(true);
     }
 }

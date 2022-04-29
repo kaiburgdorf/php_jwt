@@ -11,7 +11,7 @@ require __DIR__ . "/../src/classes/Api.php";
 require __DIR__ . "/../src/classes/Auth.php";
 require __DIR__ . "/../src/classes/Db.php";
 require __DIR__ . "/../src/classes/Jwt.php";
-//require __DIR__ . "/../src/classes/Notes.php";
+require __DIR__ . "/../src/classes/Notes.php";
 //require __DIR__ . "/../src/classes/User.php";
 
 
@@ -38,19 +38,6 @@ class Main {
         }
     }
 }
-
-
-
-
-/*
-$databaseDirectory = dirname(__FILE__) . "/db";
-
-*/
-
-
-
- 
-
 
 
 ?>

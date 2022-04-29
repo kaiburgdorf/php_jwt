@@ -10,17 +10,20 @@ class Jwt {
 
     function __construct($token = null) {
         if ($token) {
-                $this->_token = $token;
-                $this->_payload = json_decode(base64_decode(
-                    explode(".", $token)[1]
-                ));
-            //$this->validate_token(); // to set header and payload from token
+            $this->set_token($token);
         }
     }
 
 
 
     function set_token($token) {
+        $this->_token = $token;
+        $this->_payload = json_decode(base64_decode(
+            explode(".", $token)[1]
+        ));
+        $this->_header = json_decode(base64_decode(
+            explode(".", $token)[2]
+        ));
     }
 
 
@@ -117,7 +120,7 @@ class Jwt {
     }
 
     public function refresh() {
-        $this->validate_token(); // to make sure this token is set correctly
+        //$this->validate_token(); // to make sure this token is set correctly
         
         //echo json_encode($this->get_payload());
         //$this->_payload->iat = time();
