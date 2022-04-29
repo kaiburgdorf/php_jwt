@@ -16,9 +16,6 @@ class Jwt {
                 ));
             //$this->validate_token(); // to set header and payload from token
         }
-        else {
-            echo "Test" . json_encode(getallheaders());
-        }
     }
 
 
@@ -86,8 +83,8 @@ class Jwt {
     function validate_token($secret = 'secret')
     {
 
+        if(!(isset($this->_token))) return false;
         $jwt = $this->_token;
-        if(!$jwt) return false;
 
         // split the jwt
         $tokenParts = explode('.', $jwt);
@@ -95,7 +92,7 @@ class Jwt {
         $payload = base64_decode($tokenParts[1]);
         $signature_provided = $tokenParts[2];
 
-        $this->set_payload(json_decode($payload)->sub, json_decode($payload)->name, json_decode($payload)->admin, 300);
+        //$this->set_payload(json_decode($payload)->sub, json_decode($payload)->name, json_decode($payload)->admin, 300);
         $this->_header = json_decode($header);
 
         //@TODO fix, alway causes error
