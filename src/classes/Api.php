@@ -13,19 +13,20 @@ class Api {
     );
 
     // check for enum
-    private $_restrictionLevel = array('none' => 0, 'user' => 1, 'admin' => 2);
+    private $_restrictionLevel = array(
+        'none' => 0, 'user' => 1, 'admin' => 2
+        );
 
 
-    private $_method, $_payload_data;
-    private $_username, $_password, $_email;
+    // from GET
+    private $_method, $_payload_data, $_username,
+            $_password, $_email;
 
-    private $_auth;
-    private $_db;
-    private $_jwt;
-    private $_notes;
+    // class-objects
+    private $_auth, $_jwt, $_notes;
 
     function __construct() {
-        //hier GETS und header auslesen
+
         $this->_username = (isset($_GET['username'])) ? $_GET['username'] : '';
         $this->_password = (isset($_GET['password'])) ? $_GET['password'] : '';
         $this->_email = (isset($_GET['email'])) ? $_GET['email'] : '';
@@ -33,7 +34,6 @@ class Api {
         $this->_payload_data = (isset($_GET['data'])) ? $_GET['data'] : '';
     
         $this->_auth = new Auth();
-        $this->_db = new Db();
         $this->_jwt = new Jwt();
         $this->_notes = new Notes();
     }
@@ -51,30 +51,28 @@ class Api {
         $restriction_lvl = $this->_restrictionLevel[$restriction['restriction']];
         //check if method is restricted
         if ($restriction_lvl > 0) {
-
-            $x = getallheaders(); //check isset, not always set
-            $this->_jwt->set_token($x['Authorization']);
-
+            $apache_header = getallheaders(); //check isset, not always set
+            $this->_jwt->set_token($apache_header['Authorization']);
             $jwt_valid = $this->_jwt->validate_token();
+            
             if (!$jwt_valid) {
                 return $this->response(false, "Invalid Token", "", 500);
             }
-
-            $jwt_refresh = true;
-
-            //jwt get role
 
             // @TODO role neu denken
             $role = 'admin';
             if ($restriction_lvl > $this->_restrictionLevel[$role]) {
                 return $this->response(false, "Authorization failed");
             }
+
+            $jwt_refresh = true;
         }
         
         $result = call_user_func(array($this, $this->_method));
         if ($jwt_refresh) {
             $this->_jwt->refresh();
         }
+        
         return $result;
     }
 
@@ -91,35 +89,15 @@ class Api {
     }
 
     private function login() {
-        $uid = $this->_auth->validate_credentials($this->_username, $this->_password);
-        if (!$uid) {
-            exit(0);
-        }
-
-        $this->_jwt->set_payload($uid, $this->_username, true, 300);
-        $jwt = $this->_jwt->generate_jwt();
-
-        header("AuthToken: $jwt");
-        header('Access-Control-Expose-Headers: AuthToken');
+        $result = $this->_auth->login($this->_username, $this->_password);
     
-        return $this->response(true, "Successfully logged in", "");
+        return $this->response($result, "Successfully logged in", "");
     }
     
     private function register() {
-        $user_store = $this->_db->getStore('user');
-        if ($user_store->findOneBy(["username", "=", $this->_username])) {
-            echo "username already set";
-            exit(0);
-        }
-        $user = [
-        "username" => $this->_username,
-        "email" => $this->_email,
-        "password" => $this->_password
-        ];
+        $result = $this->_auth->register($this->_username, $this->_email, $this->_password);
     
-        $result = json_encode($user_store->insert($user));
-    
-        return $this->response(true, "", $result);
+        return $this->response($result);
     }
 
     private function getEntry() {  
@@ -128,7 +106,6 @@ class Api {
     
         return $this->response(true, "", $note);
     }
-
 
     private function getNoteListData() {                
         $uid = $this->_jwt->get_payload()->sub;
