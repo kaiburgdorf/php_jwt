@@ -1,6 +1,5 @@
 <?php
 
-
 class Jwt {
 
     private $_token;
@@ -14,8 +13,6 @@ class Jwt {
         }
     }
 
-
-
     function set_token($token) {
         $this->_token = $token;
         $this->_payload = json_decode(base64_decode(
@@ -26,8 +23,6 @@ class Jwt {
         ));
     }
 
-
-
     /**
      * Encodes first parameter with base 64
      * 
@@ -35,12 +30,9 @@ class Jwt {
      * 
      * @return base64 encodeter string
      */
-    function base64url_encode($str)
-    {
+    function base64url_encode($str) {
         return rtrim(strtr(base64_encode($str), '+/', '-_'), '=');
     }
-
-
 
     public function set_header($alg, $typ = 'JWT') {
         $this->_headers = array('alg'=>$alg,'typ'=> $typ);
@@ -61,9 +53,7 @@ class Jwt {
         return $this->_payload;
     }
 
-
-    function generate_jwt($secret = 'secret')
-    {
+    function generate_jwt($secret = 'secret') {
         $headers_encoded = $this->base64url_encode(json_encode($this->_headers));
         
         $payload_encoded = $this->base64url_encode(json_encode($this->_payload));
@@ -77,14 +67,10 @@ class Jwt {
         return $token;
     }
 
-
-
-
     /**
      * @TODO umstrukturieren, erst signiture prügen, dann obj variablen setzen
      */
-    function validate_token($secret = 'secret')
-    {
+    function validate_token($secret = 'secret')S {
 
         if(!(isset($this->_token))) return false;
         $jwt = $this->_token;
@@ -120,12 +106,6 @@ class Jwt {
     }
 
     public function refresh() {
-        //$this->validate_token(); // to make sure this token is set correctly
-        
-        //echo json_encode($this->get_payload());
-        //$this->_payload->iat = time();
-        //$this->_payload->exp = (time() + 300);
-        
         $pl = (array) $this->get_payload();
         $this->set_payload(
             $pl['sub'], $pl['name'], $pl['admin'], 300
